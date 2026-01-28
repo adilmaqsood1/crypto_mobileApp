@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "Crypto Trade Navigator",
+    "slug": "crypto-trading-portfolio",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "crypto-trading-portfolio",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "edgeToEdgeEnabled": true,
+      "package": "com.anonymous.cryptotradingportfolio"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    }
+  }
+}
