@@ -1,18 +1,23 @@
 {
   "expo": {
-    "name": "Crypto Trade Navigator",
+    "name": "Hikmah AI",
     "slug": "crypto-trading-portfolio",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "crypto-trading-portfolio",
+    "scheme": "hikmah-ai",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "icon": "./assets/icon.png",
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.cryptotradingportfolio"
+      "package": "com.anonymous.hikmahai",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#FFFFFF"
+      }
     },
     "web": {
       "bundler": "metro",

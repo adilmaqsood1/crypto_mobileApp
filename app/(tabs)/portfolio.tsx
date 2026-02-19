@@ -61,7 +61,7 @@ export default function PortfolioScreen() {
     const isPositive = item.pnl >= 0;
 
     return (
-      <Card style={styles.holdingCard}>
+      <Card style={styles.holdingCard} variant="outlined">
         <View style={styles.holdingHeader}>
           <View style={styles.coinInfo}>
             <View style={styles.coinIcon}>
@@ -118,7 +118,7 @@ export default function PortfolioScreen() {
       <Card style={styles.valueCard} variant="gradient">
         <View style={styles.valueHeader}>
           <Text style={styles.valueLabel}>Total Portfolio Value</Text>
-          <Ionicons name="wallet" size={24} color={colors.primary} />
+          <Ionicons name="wallet" size={24} color={colors.primaryDark} />
         </View>
         <Text style={styles.totalValue}>
           {portfolioSummary ? formatCurrency(portfolioSummary.currentValue) : '$0.00'}
@@ -143,13 +143,13 @@ export default function PortfolioScreen() {
 
       {/* Stats Row */}
       <View style={styles.statsRow}>
-        <Card style={styles.statCard}>
+        <Card style={styles.statCard} variant="outlined">
           <Text style={styles.statLabel}>Invested</Text>
           <Text style={styles.statValue}>
             {portfolioSummary ? formatCurrency(portfolioSummary.totalInvested) : '$0.00'}
           </Text>
         </Card>
-        <Card style={styles.statCard}>
+        <Card style={styles.statCard} variant="outlined">
           <Text style={styles.statLabel}>Daily P&L</Text>
           <Text style={[
             styles.statValue,
@@ -223,6 +223,7 @@ const styles = StyleSheet.create({
   valueCard: {
     padding: spacing.lg,
     marginBottom: spacing.md,
+    backgroundColor: 'transparent',
   },
   valueHeader: {
     flexDirection: 'row',
@@ -369,10 +370,10 @@ const styles = StyleSheet.create({
     color: colors.danger,
   },
   positiveBg: {
-    backgroundColor: 'rgba(0, 255, 136, 0.15)',
+    backgroundColor: colors.surface,
   },
   negativeBg: {
-    backgroundColor: 'rgba(255, 71, 87, 0.15)',
+    backgroundColor: colors.surface,
   },
   emptyContainer: {
     flex: 1,

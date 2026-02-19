@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   optionSelected: {
-    backgroundColor: 'rgba(0, 212, 255, 0.1)',
+    backgroundColor: colors.chartFill,
   },
   optionText: {
     ...typography.body,

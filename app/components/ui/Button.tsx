@@ -60,7 +60,7 @@ export function Button({
     >
       {loading ? (
         <ActivityIndicator
-          color={variant === 'outline' || variant === 'ghost' ? colors.primary : colors.background}
+          color={variant === 'outline' || variant === 'ghost' ? colors.primary : colors.textPrimary}
           size="small"
         />
       ) : (
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   text_primary: {
-    color: colors.background,
+    color: colors.textPrimary,
   },
   text_secondary: {
     color: colors.textPrimary,

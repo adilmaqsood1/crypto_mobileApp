@@ -104,16 +104,16 @@ const statusStyles = StyleSheet.create({
   
   // Variants
   success: {
-    backgroundColor: 'rgba(0, 255, 136, 0.15)',
+    backgroundColor: colors.surface,
   },
   danger: {
-    backgroundColor: 'rgba(255, 71, 87, 0.15)',
+    backgroundColor: colors.surface,
   },
   warning: {
-    backgroundColor: 'rgba(255, 184, 0, 0.15)',
+    backgroundColor: colors.surface,
   },
   info: {
-    backgroundColor: 'rgba(0, 212, 255, 0.15)',
+    backgroundColor: colors.surface,
   },
   neutral: {
     backgroundColor: colors.cardBackgroundLight,

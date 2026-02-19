@@ -25,7 +25,7 @@ export function LoadingOverlay({ visible, message = 'Loading...' }: LoadingOverl
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: colors.gridLineStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },

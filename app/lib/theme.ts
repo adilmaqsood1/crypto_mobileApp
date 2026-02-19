@@ -1,40 +1,40 @@
 // Theme constants for the crypto trading app
 export const colors = {
   // Base colors
-  background: '#000000',
+  background: 'transparent',
   appBackground: 'transparent',
-  cardBackground: '#0F1A2B',
-  cardBackgroundLight: '#14233A',
+  cardBackground: 'transparent',
+  cardBackgroundLight: '#3c904f',
   surface: '#0A1F14',
   
   // Primary colors
-  primary: '#18C6FF',
-  primaryDark: '#0B99C6',
+  primary: '#3c904f', 
+  primaryDark: '#2b73ad', // Azure
   
   // Accent colors
-  success: '#17E3A6',
-  successDark: '#0FB784',
-  danger: '#FF5D6E',
-  dangerDark: '#D64B58',
-  warning: '#FFC857',
-  warningDark: '#D9A845',
+  success: '#49a63b', // greeen
+  successDark: '#3c904f', // gradient
+  danger: '#e1430eff', // cyan
+  dangerDark: '#801212ff', // Azure
+  warning: '#efd80cff', // Azure
+  warningDark: '#bf9708ff', // vivid blue
   
   // Text colors
   textPrimary: '#FFFFFF',
-  textSecondary: '#A0B1C8',
-  textMuted: '#6B7A95',
+  textSecondary: '#2b73ad',
+  textMuted: '#ffffff',
   
   // Border colors
-  border: '#1E2A44',
-  borderLight: '#2D3A55',
+  border: '#2b73ad',
+  borderLight: '#2b73ad',
   
   // Gradient colors
-  gradientStart: '#18C6FF',
-  gradientEnd: '#17E3A6',
+  gradientStart: '#3c904f', // gradient
+  gradientEnd: '#33817b', // cyan
   
   // Chart colors
-  chartLine: '#18C6FF',
-  chartFill: 'rgba(24, 198, 255, 0.12)',
+  chartLine: '#155fcf', // vivid blue
+  chartFill: 'rgba(21, 95, 207, 0.12)',
   chartGrid: '#121A2B',
   gridLine: '#0F1626',
   gridLineStrong: '#182238',
