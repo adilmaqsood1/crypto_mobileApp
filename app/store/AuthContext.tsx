@@ -32,6 +32,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Check for stored auth on mount
   useEffect(() => {
     checkStoredAuth();
+    
+    // Set up session expiration handler
+    api.setSessionExpiredHandler(() => {
+      logout();
+    });
   }, []);
 
   const checkStoredAuth = async () => {

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Switch, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Switch, Alert, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, borderRadius, typography } from '../lib/theme';
@@ -8,6 +8,7 @@ import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/Badge';
+import { api, TradingBotStatus, TradingBotExecutionResponse } from '../services/api';
 
 export default function AccountScreen() {
   const [apiKey, setApiKey] = useState('');
@@ -16,33 +17,195 @@ export default function AccountScreen() {
   const [autoTrade, setAutoTrade] = useState(false);
   const [maxTotalUsd, setMaxTotalUsd] = useState('1000');
   const [perTradeUsd, setPerTradeUsd] = useState('100');
-  const [activeTab, setActiveTab] = useState('openOrders');
+  const [activeTab, setActiveTab] = useState('openorders');
+  
+  const [botStatus, setBotStatus] = useState<TradingBotStatus | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [executions, setExecutions] = useState<TradingBotExecutionResponse[]>([]);
+  const [closedTrades, setClosedTrades] = useState<TradingBotExecutionResponse[]>([]);
 
-  const handleSaveCredentials = () => {
-    Alert.alert('Success', 'Credentials saved successfully');
+  const fetchStatus = useCallback(async () => {
+    try {
+      const response = await api.getTradingBotStatus();
+      if (response.data) {
+        setBotStatus(response.data);
+        setAutoTrade(response.data.auto_trade_enabled);
+        if (response.data.testnet !== null) {
+          setTestnetMode(response.data.testnet);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch bot status', error);
+    }
+  }, []);
+
+  const fetchExecutions = useCallback(async (status: 'open' | 'closed') => {
+    try {
+      const response = await api.getTradingBotExecutions(status);
+      if (response.data) {
+        if (status === 'open') {
+          setExecutions(response.data);
+        } else {
+          setClosedTrades(response.data);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch executions', error);
+    }
+  }, []);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    await Promise.all([
+      fetchStatus(),
+      fetchExecutions('open'),
+      fetchExecutions('closed')
+    ]);
+    
+      // Fetch auto-trade config
+      try {
+        const configRes = await api.getAutoTradeConfig();
+        if (configRes.data) {
+          setAutoTrade(!!configRes.data.enabled);
+          if (configRes.data.max_total_usd != null) {
+            setMaxTotalUsd(configRes.data.max_total_usd.toString());
+          }
+          if (configRes.data.per_trade_usd != null) {
+            setPerTradeUsd(configRes.data.per_trade_usd.toString());
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load auto-trade config', e);
+      }
+    
+    setLoading(false);
+  }, [fetchStatus, fetchExecutions]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  }, [loadData]);
+
+  const handleSaveCredentials = async () => {
+    if (!apiKey || !apiSecret) {
+      Alert.alert('Error', 'Please enter both API Key and Secret');
+      return;
+    }
+
+    try {
+      const response = await api.saveTradingBotCredentials({
+        exchange: 'binance',
+        api_key: apiKey,
+        api_secret: apiSecret,
+        testnet: testnetMode,
+        permissions: ['read', 'trade']
+      });
+
+      if (response.error) {
+        Alert.alert('Error', response.error);
+      } else {
+        Alert.alert('Success', 'Credentials saved successfully');
+        setApiKey('');
+        setApiSecret('');
+        fetchStatus();
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to save credentials');
+    }
   };
 
-  const handleSaveAutoTrade = () => {
-    Alert.alert('Success', 'Auto-trade settings saved');
+  const handleSaveAutoTrade = async () => {
+    try {
+      const response = await api.setAutoTradeConfig({
+        enabled: autoTrade,
+        max_total_usd: parseFloat(maxTotalUsd) || 0,
+        per_trade_usd: parseFloat(perTradeUsd) || 0,
+        mode: 'buy',
+        interval: '5m',
+        close_strategy: 'pivot_break'
+      });
+      
+      if (response.error) {
+        Alert.alert('Error', response.error);
+      } else {
+        Alert.alert('Success', `Auto-trade ${autoTrade ? 'enabled' : 'disabled'} successfully`);
+        // Refresh status
+        fetchStatus();
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to save auto-trade settings');
+    }
   };
 
-  const handleRevoke = () => {
-    setApiKey('');
-    setApiSecret('');
-    Alert.alert('Revoked', 'Credentials revoked');
+  const handleRevoke = async () => {
+    try {
+      const response = await api.revokeTradingBotCredentials();
+      if (response.error) {
+        Alert.alert('Error', response.error);
+      } else {
+        setApiKey('');
+        setApiSecret('');
+        Alert.alert('Revoked', 'Credentials revoked');
+        fetchStatus();
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to revoke credentials');
+    }
   };
 
   const renderTabContent = () => {
     switch (activeTab) {
       case 'openorders':
+        if (executions.length === 0) {
+          return (
+            <View style={styles.emptyState}>
+              <Ionicons name="cart-outline" size={48} color={colors.textSecondary} />
+              <Text style={styles.emptyStateText}>No open orders</Text>
+              <Text style={styles.emptyStateSubtext}>Filled market orders show in executed trades.</Text>
+            </View>
+          );
+        }
         return (
-          <View style={styles.emptyState}>
-            <Ionicons name="cart-outline" size={48} color={colors.textSecondary} />
-            <Text style={styles.emptyStateText}>No open orders</Text>
-            <Text style={styles.emptyStateSubtext}>Filled market orders show in executed trades.</Text>
+          <View>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.tableHeaderText, { flex: 2 }]}>Symbol</Text>
+              <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Side</Text>
+              <Text style={[styles.tableHeaderText, { flex: 2, textAlign: 'right' }]}>Status</Text>
+              <Text style={[styles.tableHeaderText, { flex: 2, textAlign: 'right' }]}>Qty</Text>
+            </View>
+            {executions.map((exec, index) => (
+              <View key={exec.id} style={[styles.tableRow, index % 2 === 1 && styles.tableRowAlt]}>
+                <View style={{ flex: 2 }}>
+                  <Text style={styles.rowTextBold}>{exec.symbol}</Text>
+                  <Text style={styles.rowTextSecondary}>{new Date(exec.created_at).toLocaleTimeString()}</Text>
+                </View>
+                <Text style={[
+                  styles.rowText, 
+                  { flex: 1, textAlign: 'right', color: exec.side.toLowerCase() === 'buy' ? colors.success : colors.danger }
+                ]}>
+                  {exec.side}
+                </Text>
+                <Text style={[styles.rowText, { flex: 2, textAlign: 'right' }]}>{exec.status}</Text>
+                <Text style={[styles.rowText, { flex: 2, textAlign: 'right' }]}>{exec.quantity}</Text>
+              </View>
+            ))}
           </View>
         );
       case 'executedtrades':
+        if (closedTrades.length === 0) {
+          return (
+            <View style={styles.emptyState}>
+              <Ionicons name="list-outline" size={48} color={colors.textSecondary} />
+              <Text style={styles.emptyStateText}>No executed trades</Text>
+            </View>
+          );
+        }
         return (
           <View>
             <View style={styles.tableHeader}>
@@ -51,30 +214,27 @@ export default function AccountScreen() {
               <Text style={[styles.tableHeaderText, { flex: 2, textAlign: 'right' }]}>Price</Text>
               <Text style={[styles.tableHeaderText, { flex: 2, textAlign: 'right' }]}>Amount</Text>
             </View>
-            {/* Mock Data for Executed Trades */}
-            {[
-              { id: '1', symbol: 'BTC/USDT', side: 'Buy', price: '42,500.00', amount: '0.005', time: '10:30 AM' },
-              { id: '2', symbol: 'ETH/USDT', side: 'Sell', price: '2,250.50', amount: '1.5', time: '09:15 AM' },
-              { id: '3', symbol: 'SOL/USDT', side: 'Buy', price: '98.75', amount: '15.0', time: 'Yesterday' },
-            ].map((trade, index) => (
+            {closedTrades.map((trade, index) => (
               <View key={trade.id} style={[styles.tableRow, index % 2 === 1 && styles.tableRowAlt]}>
                 <View style={{ flex: 2 }}>
                   <Text style={styles.rowTextBold}>{trade.symbol}</Text>
-                  <Text style={styles.rowTextSecondary}>{trade.time}</Text>
+                  <Text style={styles.rowTextSecondary}>{new Date(trade.created_at).toLocaleDateString()}</Text>
                 </View>
                 <Text style={[
                   styles.rowText, 
-                  { flex: 1, textAlign: 'right', color: trade.side === 'Buy' ? colors.success : colors.danger }
+                  { flex: 1, textAlign: 'right', color: trade.side.toLowerCase() === 'buy' ? colors.success : colors.danger }
                 ]}>
                   {trade.side}
                 </Text>
-                <Text style={[styles.rowText, { flex: 2, textAlign: 'right' }]}>{trade.price}</Text>
-                <Text style={[styles.rowText, { flex: 2, textAlign: 'right' }]}>{trade.amount}</Text>
+                <Text style={[styles.rowText, { flex: 2, textAlign: 'right' }]}>{trade.price || '-'}</Text>
+                <Text style={[styles.rowText, { flex: 2, textAlign: 'right' }]}>{trade.quantity}</Text>
               </View>
             ))}
           </View>
         );
       case 'activeexecutions':
+        // Reuse executions logic or fetch different data if needed. 
+        // Based on backend, executions covers both orders and strategy executions roughly.
         return (
           <View style={styles.emptyState}>
             <Ionicons name="pulse-outline" size={48} color={colors.textSecondary} />
@@ -99,7 +259,11 @@ export default function AccountScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <Header title="Trading Bot" showNotifications={true} />
       
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+      >
         
         {/* Status Cards Grid */}
         <View style={styles.gridContainer}>
@@ -108,26 +272,36 @@ export default function AccountScreen() {
               <Text style={styles.cardLabel}>Account Type</Text>
               <Ionicons name="person-outline" size={20} color={colors.textPrimary} />
             </View>
-            <Text style={styles.cardValue}>-</Text>
-            <Text style={styles.cardSubtext}>Trading Disabled</Text>
+            <Text style={styles.cardValue}>
+              {botStatus?.exchange ? botStatus.exchange.toUpperCase() : '-'}
+            </Text>
+            <Text style={styles.cardSubtext}>
+              {botStatus?.testnet ? 'Testnet' : (botStatus?.exchange ? 'Live' : 'Trading Disabled')}
+            </Text>
           </Card>
 
           <Card style={[styles.statusCard, { backgroundColor: colors.primaryDark }]}>
             <View style={styles.cardHeader}>
-              <Text style={styles.cardLabel}>PnL</Text>
-              <Ionicons name="trending-up" size={20} color={colors.success} />
+              <Text style={styles.cardLabel}>Status</Text>
+              <Ionicons name="trending-up" size={20} color={botStatus?.credentials_connected ? colors.success : colors.textSecondary} />
             </View>
-            <Text style={[styles.cardValue, { color: colors.success }]}>$0.00</Text>
-            <Text style={styles.cardSubtext}>Auto-Trade</Text>
+            <Text style={[styles.cardValue, { color: botStatus?.credentials_connected ? colors.success : colors.textSecondary }]}>
+              {botStatus?.credentials_connected ? 'Active' : 'Inactive'}
+            </Text>
+            <Text style={styles.cardSubtext}>Connection</Text>
           </Card>
 
           <Card style={[styles.statusCard, { backgroundColor: colors.primaryDark }]}>
             <View style={styles.cardHeader}>
-              <Text style={styles.cardLabel}>Portfolio Value</Text>
-              <Ionicons name="logo-usd" size={20} color={colors.success} />
+              <Text style={styles.cardLabel}>Auto-Trade</Text>
+              <Ionicons name="flash" size={20} color={autoTrade ? colors.success : colors.textSecondary} />
             </View>
-            <Text style={[styles.cardValue, { color: colors.success }]}>$0.00</Text>
-            <Text style={styles.cardSubtext}>USDT</Text>
+            <Text style={[styles.cardValue, { color: autoTrade ? colors.success : colors.textSecondary }]}>
+              {autoTrade ? 'ON' : 'OFF'}
+            </Text>
+            <Text style={styles.cardSubtext}>
+               {botStatus?.credentials_connected ? 'Ready' : 'Setup Required'}
+            </Text>
           </Card>
 
           <Card style={[styles.statusCard, { backgroundColor: colors.primaryDark }]}>
@@ -135,7 +309,7 @@ export default function AccountScreen() {
               <Text style={styles.cardLabel}>Open Orders</Text>
               <Ionicons name="cart-outline" size={20} color={colors.success} />
             </View>
-            <Text style={[styles.cardValue, { color: colors.success }]}>0</Text>
+            <Text style={[styles.cardValue, { color: colors.success }]}>{executions.length}</Text>
             <Text style={styles.cardSubtext}>Active</Text>
           </Card>
         </View>
@@ -147,7 +321,10 @@ export default function AccountScreen() {
               <Ionicons name="checkmark-circle-outline" size={24} color={colors.textPrimary} />
               <Text style={styles.sectionTitle}>Trading Bot</Text>
             </View>
-            <StatusBadge variant="danger" label="Not Connected" />
+            <StatusBadge 
+              variant={botStatus?.credentials_connected ? "success" : "danger"} 
+              label={botStatus?.credentials_connected ? "Connected" : "Not Connected"} 
+            />
           </View>
 
           <View style={styles.formGroup}>
@@ -234,7 +411,7 @@ export default function AccountScreen() {
               title="Refresh" 
               size="sm" 
               variant="outline" 
-              onPress={() => {}} 
+              onPress={loadData} 
               icon={<Ionicons name="refresh" size={16} color={colors.primary} />} 
             />
           </View>
@@ -262,7 +439,11 @@ export default function AccountScreen() {
             })}
           </ScrollView>
 
-          {renderTabContent()}
+          {loading ? (
+             <ActivityIndicator color={colors.primary} style={{ padding: spacing.xl }} />
+          ) : (
+             renderTabContent()
+          )}
         </Card>
 
         <View style={{ height: 100 }} />

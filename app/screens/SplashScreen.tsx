@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography } from '../lib/theme';
 import { useAuth } from '../store/AuthContext';
+import { Image } from 'react-native';
 
 export function SplashScreen() {
   const router = useRouter();
@@ -27,16 +28,16 @@ export function SplashScreen() {
   return (
     <View style={styles.container}>
       {/* Logo */}
-      <View style={styles.logoContainer}>
-        <View style={styles.logoBackground}>
-          <Ionicons name="trending-up" size={64} color={colors.primary} />
+      <View style={styles.logoSection}>
+        <View style={styles.logoContainer}>
+          <Image 
+          source={require('../../assets/icon.png')} 
+          style={styles.logoImage}
+          resizeMode="contain"
+          />
         </View>
-      </View>
-
-      {/* App Name */}
-      <Text style={styles.appName}>CryptoTrader</Text>
       <Text style={styles.tagline}>Trade smarter, not harder</Text>
-
+      </View>
       {/* Loading Indicator */}
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -57,18 +58,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: spacing.lg,
   },
-  logoContainer: {
-    marginBottom: spacing.lg,
+  logoSection: {
+    alignItems: 'center',
+    marginBottom: spacing.xxl,
   },
-  logoBackground: {
-    width: 120,
-    height: 120,
-    borderRadius: 30,
-    backgroundColor: colors.cardBackground,
+   logoContainer: {
+    width: 150,
+    height: 95,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: colors.primary,
+    marginBottom: spacing.md,
+    overflow: 'hidden',
+  },
+  logoImage: {
+    width: '200%',
+    height: '150%',
   },
   appName: {
     ...typography.h1,

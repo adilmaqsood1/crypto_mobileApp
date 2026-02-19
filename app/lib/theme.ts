@@ -1,9 +1,9 @@
 // Theme constants for the crypto trading app
 export const colors = {
   // Base colors
-  background: 'transparent',
+  background: '#020804', // Dark background for gradient start
   appBackground: 'transparent',
-  cardBackground: 'transparent',
+  cardBackground: 'rgba(10, 31, 20, 0.6)', // Semi-transparent card background
   cardBackgroundLight: '#3c904f',
   surface: '#0A1F14',
   

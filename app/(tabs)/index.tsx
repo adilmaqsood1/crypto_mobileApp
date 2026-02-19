@@ -27,7 +27,7 @@ const { width } = Dimensions.get('window');
 const REFRESH_INTERVAL = 30000; // 30 seconds
 
 export default function DashboardScreen() {
-  const { setMarketMetrics, setPortfolioSummary, setBitcoinPrice, portfolioSummary, marketMetrics } = useApp();
+  const { setMarketMetrics, setPortfolioSummary, setBitcoinPrice, portfolioSummary, marketMetrics, holdings, setHoldings } = useApp();
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [bitcoinData, setBitcoinData] = useState<{ timestamp: number; price: number }[]>([]);
@@ -44,12 +44,13 @@ export default function DashboardScreen() {
     try {
       const prices = await fetchCryptoPrices();
       
-      // Fetch metrics, portfolio, btc, and news in parallel
-      const [metricsRes, portfolioRes, btcRes, newsRes] = await Promise.all([
+      // Fetch metrics, portfolio, btc, news, and holdings in parallel
+      const [metricsRes, portfolioRes, btcRes, newsRes, holdingsRes] = await Promise.all([
         api.getMarketMetrics(),
         api.getPortfolioSummary(),
         api.getBitcoinPrice(),
-        api.getNews()
+        api.getNews(),
+        api.getHoldings()
       ]);
 
       if (prices.length > 0) {
@@ -81,6 +82,10 @@ export default function DashboardScreen() {
         setPortfolioSummary(portfolioRes.data);
       }
 
+      if (holdingsRes.data) {
+        setHoldings(holdingsRes.data);
+      }
+
       if (btcRes.data) {
         if (btcRes.data.history) {
           setBitcoinData(btcRes.data.history);
@@ -102,7 +107,7 @@ export default function DashboardScreen() {
     } catch (error) {
       console.error('Error loading live prices:', error);
     }
-  }, [setMarketMetrics, setPortfolioSummary, setBitcoinPrice]);
+  }, [setMarketMetrics, setPortfolioSummary, setBitcoinPrice, setHoldings]);
 
   useEffect(() => {
     const initializeData = async () => {
@@ -293,16 +298,17 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {livePrices.length > 0 && (
+        {holdings.length > 0 && (
           <View style={styles.paddedSection}>
+            <Text style={styles.sectionTitle}>Your Holdings</Text>
             <View style={styles.pricesGrid}>
-              {livePrices.slice(0, 6).map((crypto) => (
-                <View key={crypto.symbol} style={styles.priceCard}>
-                  <Text style={styles.priceSymbol}>{crypto.symbol.replace('/USD', '')}</Text>
-                  <Text style={styles.priceValue}>${crypto.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}</Text>
-                  <View style={[styles.priceChangeBadge, crypto.changePercent >= 0 ? styles.positiveBg : styles.negativeBg]}>
-                    <Text style={[styles.priceChangeText, crypto.changePercent >= 0 ? styles.positive : styles.negative]}>
-                      {crypto.changePercent >= 0 ? '+' : ''}{crypto.changePercent.toFixed(2)}%
+              {holdings.slice(0, 6).map((holding) => (
+                <View key={holding.symbol} style={styles.priceCard}>
+                  <Text style={styles.priceSymbol}>{holding.symbol.replace('/USD', '')}</Text>
+                  <Text style={styles.priceValue}>${holding.currentPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</Text>
+                  <View style={[styles.priceChangeBadge, holding.pnlPercent >= 0 ? styles.positiveBg : styles.negativeBg]}>
+                    <Text style={[styles.priceChangeText, holding.pnlPercent >= 0 ? styles.positive : styles.negative]}>
+                      {holding.pnlPercent >= 0 ? '+' : ''}{holding.pnlPercent.toFixed(2)}%
                     </Text>
                   </View>
                 </View>
@@ -314,7 +320,7 @@ export default function DashboardScreen() {
         <View style={styles.paddedSection}>
           <Text style={styles.sectionTitle}>Latest News</Text>
           <View style={styles.newsList}>
-            {news.map((item) => (
+            {news.slice(0, 5).map((item) => (
               <TouchableOpacity
                 key={item.id}
                 style={styles.newsItem}
@@ -514,7 +520,7 @@ const styles = StyleSheet.create({
   positiveBg: { backgroundColor: 'rgba(0, 255, 136, 0.15)' },
   negativeBg: { backgroundColor: 'rgba(255, 71, 87, 0.15)' },
   pricesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  priceCard: { width: (width - 48) / 2, padding: spacing.md, alignItems: 'center', backgroundColor: colors.cardBackground, borderRadius: borderRadius.lg, borderWidth: 1, borderColor: colors.border },
+  priceCard: { width: (width - 48) / 2, padding: spacing.md, alignItems: 'center', backgroundColor: colors.cardBackground, borderRadius: borderRadius.lg, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.sm },
   priceSymbol: { ...typography.body, color: colors.textPrimary, fontWeight: '600', marginBottom: spacing.xs },
   priceValue: { ...typography.h4, color: colors.textPrimary, marginBottom: spacing.xs },
   priceChangeBadge: { paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: borderRadius.sm },

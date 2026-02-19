@@ -36,6 +36,7 @@ interface AppContextType extends AppState {
   
   // Notification actions
   setNotifications: (notifications: Notification[]) => void;
+  addNotification: (notification: Notification) => void;
   markAsRead: (id: string) => void;
   clearAllNotifications: () => void;
   
@@ -103,6 +104,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState(prev => ({ ...prev, notifications, unreadCount }));
   }, []);
 
+  const addNotification = useCallback((notification: Notification) => {
+    setState(prev => {
+      const notifications = [notification, ...prev.notifications];
+      const unreadCount = notifications.filter(n => !n.isRead).length;
+      return { ...prev, notifications, unreadCount };
+    });
+  }, []);
+
   const markAsRead = useCallback((id: string) => {
     setState(prev => {
       const notifications = prev.notifications.map(n =>
@@ -161,6 +170,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       removeFromWatchlist,
       isInWatchlist,
       setNotifications,
+      addNotification,
       markAsRead,
       clearAllNotifications,
       setScanResults,
@@ -178,6 +188,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     removeFromWatchlist,
     isInWatchlist,
     setNotifications,
+    addNotification,
     markAsRead,
     clearAllNotifications,
     setScanResults,

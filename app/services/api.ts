@@ -11,9 +11,14 @@ interface ApiResponse<T> {
 
 class ApiService {
   private token: string | null = null;
+  private onSessionExpired: (() => void) | null = null;
 
   setToken(token: string | null) {
     this.token = token;
+  }
+
+  setSessionExpiredHandler(handler: () => void) {
+    this.onSessionExpired = handler;
   }
 
   private async request<T>(
@@ -35,6 +40,9 @@ class ApiService {
       const data = await response.json().catch(() => null);
 
       if (!response.ok) {
+        if (response.status === 401 && this.onSessionExpired) {
+          this.onSessionExpired();
+        }
         return {
           data: null,
           error: data?.detail || data?.message || 'Request failed',
@@ -245,27 +253,32 @@ class ApiService {
     try {
       const [summaryRes, performanceRes, holdingsRes] = await Promise.all([
         this.request<any>('/crypto-portfolio/summary'),
-        this.request<any[]>('/crypto-portfolio/performance?period=24h'),
+        this.request<any>('/crypto-portfolio/performance?period=24h'),
         this.request<any[]>('/crypto-portfolio/holdings')
       ]);
 
       if (summaryRes.data) {
         const summary = summaryRes.data;
-        const performance = performanceRes.data || [];
+        const performanceObj = performanceRes.data;
+        const performance = Array.isArray(performanceObj) 
+          ? performanceObj 
+          : (performanceObj && typeof performanceObj === 'object' && 'performance_data' in performanceObj 
+              ? (performanceObj as any).performance_data 
+              : []);
         const holdings = holdingsRes.data || [];
         
         const investedFromHoldings = holdings.reduce((sum, h) => {
-          const qty = Number(h.total_amount) || 0;
-          const entry = Number(h.average_price) || 0;
+          const qty = Number(h.amount) || Number(h.total_amount) || 0;
+          const entry = Number(h.avg_price) || Number(h.average_price) || 0;
           return sum + qty * entry;
         }, 0);
         const currentFromHoldings = holdings.reduce((sum, h) => {
-          return sum + (Number(h.total_value) || 0);
+          return sum + (Number(h.value) || Number(h.total_value) || 0);
         }, 0);
 
         const currentValue = Number(summary.total_value) || currentFromHoldings || 0;
-        const totalPnL = Number(summary.total_unrealized_pnl) || (currentValue - investedFromHoldings);
-        const totalPnLPercent = Number(summary.total_unrealized_pnl_percent) || (investedFromHoldings ? (totalPnL / investedFromHoldings) * 100 : 0);
+        const totalPnL = Number(summary.total_pnl) || Number(summary.total_unrealized_pnl) || (currentValue - investedFromHoldings);
+        const totalPnLPercent = Number(summary.total_pnl_percent) || Number(summary.total_unrealized_pnl_percent) || (investedFromHoldings ? (totalPnL / investedFromHoldings) * 100 : 0);
         const totalInvested = investedFromHoldings || (currentValue - totalPnL);
 
         let dailyPnL = 0;
@@ -339,13 +352,13 @@ class ApiService {
             symbol: h.symbol,
             name: h.name,
             icon: h.image || `https://assets.coingecko.com/coins/images/1/small/${h.symbol.toLowerCase()}.png`, // Fallback
-            quantity: h.total_amount ?? 0,
-            avgBuyPrice: h.average_price ?? 0,
+            quantity: h.amount ?? h.total_amount ?? 0,
+            avgBuyPrice: h.avg_price ?? h.average_price ?? 0,
             currentPrice: h.current_price ?? 0,
-            investedValue: h.average_price ?? 0,
-            currentValue: h.total_value ?? 0,
-            pnl: h.unrealized_pnl ?? 0,
-            pnlPercent: h.unrealized_pnl_percent ?? 0
+            investedValue: (h.amount ?? h.total_amount ?? 0) * (h.avg_price ?? h.average_price ?? 0),
+            currentValue: h.value ?? h.total_value ?? 0,
+            pnl: h.pnl ?? h.unrealized_pnl ?? 0,
+            pnlPercent: h.pnl_percent ?? h.unrealized_pnl_percent ?? 0
         }));
         return { data: holdings, error: null, status: response.status };
     }
@@ -376,27 +389,39 @@ class ApiService {
 
   // Scanner endpoints
   async scanOpportunities(interval: string, strategy: string) {
-    const mode = strategy === 'Volume' ? 'buy' : 'buy';
-    const response = await this.request<any>(`/simple/opportunities?interval=${encodeURIComponent(interval)}&mode=${mode}`);
+    const mode = strategy === 'Volume' ? 'volume-spike' : strategy === 'Hikmah' ? 'buy' : 'buy';
+    
+    // Determine the endpoint based on authentication or specific needs
+    // For now, using the open endpoint for buy opportunities as it doesn't require auth
+    // and returns top 100 symbols. Adjust if authenticated endpoint is preferred.
+    // If strategy is Volume, use volume-spike as requested
+    const effectiveStrategy = strategy === 'Volume' ? 'volume-spike' : strategy;
+    
+    // The simple scanner endpoint accepts 'mode' or 'strategy' parameters depending on implementation
+    // Assuming 'mode' maps to strategy type based on previous usage
+    const endpoint = `/simple/buy-opportunities?interval=${encodeURIComponent(interval)}&strategy=${encodeURIComponent(effectiveStrategy)}`;
+    
+    const response = await this.request<any>(endpoint);
 
     if (response.data && response.data.opportunities) {
       const results = response.data.opportunities.map((item: any) => ({
-        id: item.id || item.scan_result_id || Math.random().toString(),
+        id: item.id || Math.random().toString(),
         symbol: item.symbol || '',
         name: item.name || '',
         category: item.category || 'Crypto',
-        price: item.current_price ?? item.entry_price ?? 0,
-        change1h: item.return_1h_percent ?? 0,
-        change24h: item.return_24h_percent ?? 0,
-        change7d: item.return_7d_percent ?? 0,
+        price: item.current_price ?? 0,
+        change1h: item.price_change_24h ?? 0, // Mapping 24h to 1h for now as API might return 24h
+        change24h: item.price_change_24h ?? 0,
+        change7d: 0, // Not provided in open endpoint
         marketCap: item.market_cap ?? 0,
         volume24h: item.volume_24h ?? 0,
-        momentum: item.momentum ?? 0,
+        momentum: item.ek_score ?? 0, // Using EK Score as momentum proxy
         rsi: item.rsi ?? 50,
         ekScore: item.ek_score ?? 0,
-        ohlc5m: item.ohlc5m || { open: 0, high: 0, low: 0, close: 0 },
-        sparkline: item.sparkline_data || [],
-        isApproved: item.isApproved || false
+        ohlc5m: { open: 0, high: 0, low: 0, close: 0 },
+        sparkline: item.last_7_days || [],
+        isApproved: false, // Open endpoint results are not approved/persisted yet
+        status: 'potential'
       }));
       return { data: results, error: null, status: response.status };
     }
@@ -409,29 +434,35 @@ class ApiService {
   }
 
   async getApprovedOpportunities() {
-    const response = await this.request<any[]>('/scanner/approved');
+    const response = await this.request<any[]>('/scanner/approved-trades');
     if (response.data) {
         const results = response.data.map((item: any) => ({
             id: item.id || Math.random().toString(),
             symbol: item.symbol || '',
             name: item.name || '',
             category: item.category || 'Crypto',
-            price: item.price ?? 0,
-            change1h: item.change1h ?? 0,
-            change24h: item.change24h ?? 0,
-            change7d: item.change7d ?? 0,
-            marketCap: item.marketCap ?? 0,
-            volume24h: item.volume24h ?? 0,
-            momentum: item.momentum ?? 0,
+            price: item.entry_price ?? 0,
+            change1h: item.return_1h ?? 0,
+            change24h: item.return_1h ?? 0, // Using 1h as proxy if 24h not in ApprovedTrade
+            change7d: 0,
+            marketCap: 0, // Not in ApprovedTrade
+            volume24h: item.volume ?? 0,
+            momentum: item.ek_score ?? 0, // Using EK Score as momentum proxy
             rsi: item.rsi ?? 50,
-            ekScore: item.ekScore ?? 0,
-            ohlc5m: item.ohlc5m || { open: 0, high: 0, low: 0, close: 0 },
-            sparkline: item.sparkline || [],
-            isApproved: true
+            ekScore: item.ek_score ?? 0,
+            ohlc5m: { open: 0, high: 0, low: 0, close: 0 },
+            sparkline: [],
+            isApproved: true,
+            status: item.status || 'pending'
         }));
         return { data: results, error: null, status: response.status };
     }
     return { data: [], error: response.error, status: response.status };
+  }
+
+  async getClosedTrades(limit: number = 50, daysBack: number = 30) {
+    const response = await this.request<ClosedTrade[]>(`/scanner/closed-trades?limit=${limit}&days_back=${daysBack}`);
+    return { data: response.data || [], error: response.error, status: response.status };
   }
 
   // Courses endpoints
@@ -522,6 +553,55 @@ class ApiService {
       body: JSON.stringify({ full_name: data.name, ...data }),
     });
   }
+
+  // Trading Bot endpoints
+  async getTradingBotStatus() {
+    return this.request<TradingBotStatus>('/trading-bot/status');
+  }
+
+  async getTradingBotCredentials() {
+    return this.request<TradingBotCredentialResponse[]>('/trading-bot/credentials');
+  }
+
+  async saveTradingBotCredentials(data: TradingBotCredentialRequest) {
+    return this.request<TradingBotCredentialResponse>('/trading-bot/credentials', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async revokeTradingBotCredentials() {
+    return this.request<{ success: boolean; message: string }>('/trading-bot/credentials', {
+      method: 'DELETE',
+    });
+  }
+
+  async executeTradingBotSignal(data: TradingBotExecutionRequest) {
+    return this.request<TradingBotExecutionResponse>('/trading-bot/execute', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getTradingBotExecutions(status?: string, limit: number = 200) {
+    let url = `/trading-bot/executions?limit=${limit}`;
+    if (status) {
+      url += `&status=${status}`;
+    }
+    return this.request<TradingBotExecutionResponse[]>(url);
+  }
+
+  // Auto-Trade Config endpoints
+  async getAutoTradeConfig() {
+    return this.request<AutoTradeConfig>('/simple/auto-trade/config');
+  }
+
+  async setAutoTradeConfig(config: AutoTradeConfig) {
+    return this.request<AutoTradeConfig>('/simple/auto-trade/config', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    });
+  }
 }
 
 // Types
@@ -602,6 +682,36 @@ export interface ScanResult {
   ohlc5m: { open: number; high: number; low: number; close: number };
   sparkline: number[];
   isApproved?: boolean;
+  status?: string;
+}
+
+export interface PartialFill {
+  qty: number;
+  price: number;
+  reason: string;
+  at: string;
+}
+
+export interface ClosedTrade {
+  id: string;
+  symbol: string;
+  category: string;
+  trade_type: 'buy' | 'sell';
+  entry_price: number;
+  exit_price: number;
+  quantity: number;
+  invested_amount: number;
+  exit_value: number;
+  pnl_amount: number;
+  pnl_percentage: number;
+  partial_fills?: PartialFill[];
+  entry_time: string;
+  exit_time: string;
+  duration: number;
+  return_percent: number;
+  strategy: string;
+  momentum_trigger: string;
+  interval_selected: string;
 }
 
 export interface Course {
@@ -643,6 +753,67 @@ export interface Notification {
   message: string;
   timestamp: string;
   isRead: boolean;
+}
+
+export interface TradingBotStatus {
+  credentials_connected: boolean;
+  auto_trade_enabled: boolean;
+  exchange: string | null;
+  testnet: boolean | null;
+}
+
+export interface TradingBotCredentialResponse {
+  exchange: string;
+  api_key_preview: string;
+  permissions: string[];
+  testnet: boolean;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  last_used_at: string | null;
+}
+
+export interface TradingBotCredentialRequest {
+  exchange?: string;
+  api_key?: string;
+  api_secret?: string;
+  passphrase?: string;
+  permissions?: string[];
+  testnet?: boolean;
+}
+
+export interface TradingBotExecutionResponse {
+  id: string;
+  status: string;
+  symbol: string;
+  side: string;
+  order_type: string;
+  quantity: number;
+  price: number | null;
+  exchange: string;
+  created_at: string;
+}
+
+export interface TradingBotExecutionRequest {
+  signal_id?: string;
+  symbol?: string;
+  side?: string;
+  order_type?: string;
+  quantity: number;
+  price?: number;
+  idempotency_key?: string;
+}
+
+export interface AutoTradeConfig {
+  enabled: boolean;
+  max_total_usd: number;
+  per_trade_usd?: number;
+  mode?: string;
+  interval?: string;
+  symbols?: string[];
+  close_strategy?: string;
+  lookback?: string;
+  max_symbols?: number;
 }
 
 export const api = new ApiService();
