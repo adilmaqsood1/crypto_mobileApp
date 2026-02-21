@@ -2,14 +2,14 @@
   "expo": {
     "name": "Hikmah AI",
     "slug": "crypto-trading-portfolio",
-    "version": "1.0.0",
+    "version": "1.2.0",
     "orientation": "default",
     "scheme": "hikmah-ai",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "icon": "./assets/icon.png",
+    "icon": "./assets/hikmah_icon.png",
     "splash": {
-      "image": "./assets/favicon.ico",
+      "image": "./assets/hikmah_icon.png",
       "backgroundColor": "#FFFFFF"
     },
     "ios": {
@@ -20,7 +20,7 @@
       "edgeToEdgeEnabled": true,
       "package": "com.anonymous.hikmahai",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/favicon.ico",
+        "foregroundImage": "./assets/hikmah_icon.png",
         "backgroundColor": "#FFFFFF"
       }
     },
@@ -33,7 +33,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/icon.png",
+          "icon": "./assets/hikmah_icon.png",
           "color": "#ffffff"
         }
       ]
